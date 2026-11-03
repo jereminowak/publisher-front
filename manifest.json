@@ -1,0 +1,15 @@
+{
+  "name": "Rolkomat",
+  "short_name": "Rolkomat",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f2f2f7",
+  "theme_color": "#007aff",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
