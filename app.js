@@ -1,5 +1,5 @@
 // Zmienne systemowe
-const SERVER_URL = 'http://130.61.213.196:8000'; // Pamiętaj o zmianie na IP na czas testów z iPada
+const SERVER_URL = 'https://publisher-api.duckdns.org'; // Pamiętaj o zmianie na IP na czas testów z iPada
 let allReels = []; // Tutaj trzymamy pobraną listę rolek
 
 // Elementy nawigacji
