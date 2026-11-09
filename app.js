@@ -19,6 +19,13 @@ const scheduleDateInput = document.getElementById('scheduleDate');
 // Inicjalizacja przy starcie
 document.addEventListener('DOMContentLoaded', fetchCalendarData);
 
+setInterval(() => {
+    // Sprawdza, czy użytkownik jest na widoku kalendarza (żeby nie przerywać mu pracy w formularzu)
+    if (calendarView.classList.contains('active')) {
+        fetchCalendarData();
+    }
+}, 10000);
+
 // Nawigacja między ekranami
 goToFormBtn.addEventListener('click', () => {
     calendarView.classList.remove('active');
