@@ -16,6 +16,12 @@ const publishNowCb = document.getElementById('publishNow');
 const dateContainer = document.getElementById('datePickerContainer');
 const scheduleDateInput = document.getElementById('scheduleDate');
 
+// Elementy podglądu okładki
+const coverContainer = document.getElementById('cover-container');
+const videoPreview = document.getElementById('video-preview');
+const coverSlider = document.getElementById('cover-slider');
+const coverCanvas = document.getElementById('cover-canvas');
+
 // Inicjalizacja przy starcie
 document.addEventListener('DOMContentLoaded', fetchCalendarData);
 
@@ -48,12 +54,34 @@ publishNowCb.addEventListener('change', () => {
     }
 });
 
-// Odblokowanie przycisku zapisu po wybraniu wideo
-fileInput.addEventListener('change', () => {
-    submitBtn.disabled = !fileInput.value;
+// Odblokowanie przycisku zapisu po wybraniu wideo oraz ładowanie podglądu okładki
+fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        submitBtn.disabled = false;
+        
+        // Ładowanie wideo do podglądu klatki
+        videoPreview.src = URL.createObjectURL(file);
+        coverContainer.style.display = 'block';
+    } else {
+        submitBtn.disabled = true;
+        coverContainer.style.display = 'none';
+    }
 });
 
-// WYSYŁKA FORMULARZA
+// Obsługa suwaka i długości wideo
+videoPreview.addEventListener('loadedmetadata', function() {
+    coverSlider.max = videoPreview.duration;
+    coverSlider.value = 0;
+    videoPreview.currentTime = 0;
+});
+
+// Przewijanie wideo podczas suwania
+coverSlider.addEventListener('input', function() {
+    videoPreview.currentTime = this.value;
+});
+
+// WYSYŁKA FORMULARZA (musi być async)
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const file = fileInput.files[0];
@@ -71,7 +99,7 @@ form.addEventListener('submit', async (e) => {
     }
 
     submitBtn.disabled = true;
-    submitBtn.innerText = "Wysyłanie na serwer...";
+    submitBtn.innerText = "Przygotowywanie i wysyłanie na serwer...";
 
     const formData = new FormData();
     formData.append('video', file);
@@ -79,10 +107,21 @@ form.addEventListener('submit', async (e) => {
     formData.append('schedule_date', date);
     formData.append('platforms', JSON.stringify(selectedPlatforms));
 
+    // --- GENEROWANIE KLATKI OKŁADKI DO WYSYŁKI ---
+    const ctx = coverCanvas.getContext('2d');
+    coverCanvas.width = videoPreview.videoWidth;
+    coverCanvas.height = videoPreview.videoHeight;
+    ctx.drawImage(videoPreview, 0, 0, coverCanvas.width, coverCanvas.height);
+
+    const coverBlob = await new Promise(resolve => coverCanvas.toBlob(resolve, 'image/jpeg', 0.8));
+    formData.append('thumbnail', coverBlob, 'thumbnail.jpg');
+    // --------------------------------------------
+
     try {
         const response = await fetch(`${SERVER_URL}/upload`, { method: 'POST', body: formData });
         if (response.ok) {
             form.reset();
+            coverContainer.style.display = 'none'; // Chowamy suwak po udanej wysyłce
             submitBtn.disabled = true;
             submitBtn.innerText = "Zaplanuj";
             
@@ -154,7 +193,6 @@ function renderCalendarGrid() {
         dayCell.appendChild(dateLabel);
 
         // Szukanie rolek zaplanowanych na ten konkretny dzień
-        // Data z Pythona wraca w formacie np. "2026-11-03T14:30"
         const dzienString = dzien.toString().padStart(2, '0');
         const miesiacString = (miesiac + 1).toString().padStart(2, '0');
         const prefixDaty = `${rok}-${miesiacString}-${dzienString}`;
@@ -163,49 +201,49 @@ function renderCalendarGrid() {
 
         rolkiNaTenDzien.forEach(reel => {
             const godzina = reel.date.split('T')[1] || "";
-            // Pobieramy opis zamiast nazwy pliku i ucinamy go, by zmieścił się w kafelku
             const krotkiOpis = reel.description ? 
                 (reel.description.length > 15 ? reel.description.substring(0, 15) + '...' : reel.description) 
                 : 'Brak opisu';
 
-            // Tworzymy osobny kafelek dla każdej wybranej platformy
             reel.platforms.forEach(platform => {
                 const divRolki = document.createElement('div');
                 divRolki.className = `mini-reel ${platform}`;
                 
-                let nazwaPlatformy = platform.toUpperCase(); // YT, TT, IG, FB
+                let nazwaPlatformy = platform.toUpperCase();
 
-                // Jeśli data publikacji już minęła lub jest "teraz"
-                if (reel.date !== "TERAZ" && reel.date <= dzisiaj.toISOString().substring(0, 16)) {
+                // HISTORIA: Ustawianie wyglądu w zależności od statusu
+                if (reel.status === 'published') {
+                    divRolki.classList.add('published');
+                    divRolki.innerText = `✅ ${nazwaPlatformy}: ${krotkiOpis}`;
+                } else if (reel.date !== "TERAZ" && reel.date <= dzisiaj.toISOString().substring(0, 16)) {
                     divRolki.classList.add('teraz');
                     divRolki.innerText = `⏳ ${nazwaPlatformy}: ${krotkiOpis}`;
                 } else {
                     divRolki.innerText = `${godzina} ${nazwaPlatformy}: ${krotkiOpis}`;
                 }
 
-                // --- NOWY KOD: Obsługa kliknięcia (usuwanie) ---
+                // Usuwanie (pozostawione dla rolek pending)
                 divRolki.addEventListener('click', async () => {
-                    // Wyświetla systemowe okienko potwierdzenia na iPadzie
-                    const potwierdzenie = confirm(`Czy na pewno chcesz anulować publikację "${krotkiOpis}" i usunąć wideo z serwera?`);
+                    if (reel.status === 'published') {
+                        // Opcjonalnie: można zablokować usuwanie opublikowanych rolek lub poprosić o potwierdzenie zniknięcia z historii
+                        const potwierdzenie = confirm(`Ta rolka została już opublikowana. Czy na pewno chcesz usunąć ten wpis z historii?`);
+                        if (!potwierdzenie) return;
+                    } else {
+                        const potwierdzenie = confirm(`Czy na pewno chcesz anulować publikację "${krotkiOpis}" i usunąć wideo z serwera?`);
+                        if (!potwierdzenie) return;
+                    }
                     
-                    if (potwierdzenie) {
-                        try {
-                            const response = await fetch(`${SERVER_URL}/delete/${reel.id}`, {
-                                method: 'DELETE'
-                            });
-                            
-                            if (response.ok) {
-                                // Odświeżamy kalendarz - usunięty kafelek natychmiast zniknie
-                                fetchCalendarData();
-                            } else {
-                                alert("Wystąpił błąd po stronie serwera.");
-                            }
-                        } catch (error) {
-                            alert("Brak połączenia z serwerem.");
+                    try {
+                        const response = await fetch(`${SERVER_URL}/delete/${reel.id}`, { method: 'DELETE' });
+                        if (response.ok) {
+                            fetchCalendarData();
+                        } else {
+                            alert("Wystąpił błąd po stronie serwera.");
                         }
+                    } catch (error) {
+                        alert("Brak połączenia z serwerem.");
                     }
                 });
-                // --- KONIEC NOWEGO KODU ---
                 
                 dayCell.appendChild(divRolki);
             });
