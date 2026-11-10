@@ -1,6 +1,6 @@
 // Zmienne systemowe
 const SERVER_URL = 'https://publisher-api.duckdns.org'; // Pamiętaj o zmianie na IP na czas testów z iPada
-let allReels = []; // Tutaj trzymamy pobraną listę rolek
+let allReels = []; 
 
 // Elementy nawigacji
 const calendarView = document.getElementById('calendarView');
@@ -16,17 +16,10 @@ const publishNowCb = document.getElementById('publishNow');
 const dateContainer = document.getElementById('datePickerContainer');
 const scheduleDateInput = document.getElementById('scheduleDate');
 
-// Elementy podglądu okładki
-const coverContainer = document.getElementById('cover-container');
-const videoPreview = document.getElementById('video-preview');
-const coverSlider = document.getElementById('cover-slider');
-const coverCanvas = document.getElementById('cover-canvas');
-
 // Inicjalizacja przy starcie
 document.addEventListener('DOMContentLoaded', fetchCalendarData);
 
 setInterval(() => {
-    // Sprawdza, czy użytkownik jest na widoku kalendarza (żeby nie przerywać mu pracy w formularzu)
     if (calendarView.classList.contains('active')) {
         fetchCalendarData();
     }
@@ -43,7 +36,7 @@ goToCalendarBtn.addEventListener('click', () => {
     calendarView.classList.add('active');
 });
 
-// Logika ukrywania kalendarza (Opublikuj natychmiast)
+// Logika ukrywania kalendarza
 publishNowCb.addEventListener('change', () => {
     if (publishNowCb.checked) {
         dateContainer.style.display = 'none';
@@ -54,34 +47,12 @@ publishNowCb.addEventListener('change', () => {
     }
 });
 
-// Odblokowanie przycisku zapisu po wybraniu wideo oraz ładowanie podglądu okładki
-fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        submitBtn.disabled = false;
-        
-        // Ładowanie wideo do podglądu klatki
-        videoPreview.src = URL.createObjectURL(file);
-        coverContainer.style.display = 'block';
-    } else {
-        submitBtn.disabled = true;
-        coverContainer.style.display = 'none';
-    }
+// Odblokowanie przycisku zapisu
+fileInput.addEventListener('change', () => {
+    submitBtn.disabled = !fileInput.value;
 });
 
-// Obsługa suwaka i długości wideo
-videoPreview.addEventListener('loadedmetadata', function() {
-    coverSlider.max = videoPreview.duration;
-    coverSlider.value = 0;
-    videoPreview.currentTime = 0;
-});
-
-// Przewijanie wideo podczas suwania
-coverSlider.addEventListener('input', function() {
-    videoPreview.currentTime = this.value;
-});
-
-// WYSYŁKA FORMULARZA (musi być async)
+// WYSYŁKA FORMULARZA
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const file = fileInput.files[0];
@@ -99,7 +70,7 @@ form.addEventListener('submit', async (e) => {
     }
 
     submitBtn.disabled = true;
-    submitBtn.innerText = "Przygotowywanie i wysyłanie na serwer...";
+    submitBtn.innerText = "Wysyłanie na serwer...";
 
     const formData = new FormData();
     formData.append('video', file);
@@ -107,25 +78,13 @@ form.addEventListener('submit', async (e) => {
     formData.append('schedule_date', date);
     formData.append('platforms', JSON.stringify(selectedPlatforms));
 
-    // --- GENEROWANIE KLATKI OKŁADKI DO WYSYŁKI ---
-    const ctx = coverCanvas.getContext('2d');
-    coverCanvas.width = videoPreview.videoWidth;
-    coverCanvas.height = videoPreview.videoHeight;
-    ctx.drawImage(videoPreview, 0, 0, coverCanvas.width, coverCanvas.height);
-
-    const coverBlob = await new Promise(resolve => coverCanvas.toBlob(resolve, 'image/jpeg', 0.8));
-    formData.append('thumbnail', coverBlob, 'thumbnail.jpg');
-    // --------------------------------------------
-
     try {
         const response = await fetch(`${SERVER_URL}/upload`, { method: 'POST', body: formData });
         if (response.ok) {
             form.reset();
-            coverContainer.style.display = 'none'; // Chowamy suwak po udanej wysyłce
             submitBtn.disabled = true;
             submitBtn.innerText = "Zaplanuj";
             
-            // Wracamy do kalendarza i odświeżamy dane!
             formView.classList.remove('active');
             calendarView.classList.add('active');
             await fetchCalendarData();
@@ -150,7 +109,7 @@ async function fetchCalendarData() {
     }
 }
 
-// RYSOWANIE SIATKI MIESIĄCA I RÓLEK
+// RYSOWANIE SIATKI MIESIĄCA I ROLEK
 function renderCalendarGrid() {
     const daysGrid = document.getElementById('daysGrid');
     const monthYearLabel = document.getElementById('monthYearLabel');
@@ -158,31 +117,25 @@ function renderCalendarGrid() {
 
     const dzisiaj = new Date();
     const rok = dzisiaj.getFullYear();
-    const miesiac = dzisiaj.getMonth(); // 0 = styczeń
+    const miesiac = dzisiaj.getMonth(); 
     
     const nazwyMiesiecy = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec", "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"];
     monthYearLabel.innerText = `${nazwyMiesiecy[miesiac]} ${rok}`;
 
-    // Obliczanie dni w miesiącu
     const liczbaDni = new Date(rok, miesiac + 1, 0).getDate();
-    
-    // Obliczanie od jakiego dnia tygodnia zaczyna się miesiąc (0=niedziela)
     let pierwszyDzien = new Date(rok, miesiac, 1).getDay();
-    pierwszyDzien = pierwszyDzien === 0 ? 6 : pierwszyDzien - 1; // Przesunięcie, by poniedziałek był 0
+    pierwszyDzien = pierwszyDzien === 0 ? 6 : pierwszyDzien - 1; 
 
-    // Puste komórki na początku miesiąca
     for (let i = 0; i < pierwszyDzien; i++) {
         const emptyCell = document.createElement('div');
         emptyCell.className = 'day-cell empty';
         daysGrid.appendChild(emptyCell);
     }
 
-    // Właściwe dni miesiąca
     for (let dzien = 1; dzien <= liczbaDni; dzien++) {
         const dayCell = document.createElement('div');
         dayCell.className = 'day-cell';
         
-        // Sprawdzanie czy to dzisiaj
         if (dzien === dzisiaj.getDate()) {
             dayCell.classList.add('today');
         }
@@ -192,7 +145,6 @@ function renderCalendarGrid() {
         dateLabel.innerText = dzien;
         dayCell.appendChild(dateLabel);
 
-        // Szukanie rolek zaplanowanych na ten konkretny dzień
         const dzienString = dzien.toString().padStart(2, '0');
         const miesiacString = (miesiac + 1).toString().padStart(2, '0');
         const prefixDaty = `${rok}-${miesiacString}-${dzienString}`;
@@ -222,10 +174,9 @@ function renderCalendarGrid() {
                     divRolki.innerText = `${godzina} ${nazwaPlatformy}: ${krotkiOpis}`;
                 }
 
-                // Usuwanie (pozostawione dla rolek pending)
+                // Obsługa kliknięcia (usuwanie)
                 divRolki.addEventListener('click', async () => {
                     if (reel.status === 'published') {
-                        // Opcjonalnie: można zablokować usuwanie opublikowanych rolek lub poprosić o potwierdzenie zniknięcia z historii
                         const potwierdzenie = confirm(`Ta rolka została już opublikowana. Czy na pewno chcesz usunąć ten wpis z historii?`);
                         if (!potwierdzenie) return;
                     } else {
